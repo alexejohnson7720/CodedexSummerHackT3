@@ -1,0 +1,109 @@
+---
+title: "Code for Track 3 - Men's"
+output: github_document
+---
+
+```{r include = FALSE, warning = FALSE}
+#read in libraries
+library(readr)
+library(ggplot2)
+library(tidyverse)
+library(mosaic)
+library(dplyr)
+library(tidyr)
+library(janitor)
+library(ggfortify)
+library(forecast)
+library(ggthemes)
+library(rmarkdown)
+
+#read in dataset
+results <- read_csv("./results.csv")
+```
+
+```{r warning = FALSE}
+#filter out specific event
+m100M <- results %>% filter(Event == "100M Men")
+
+#transform result (time) to double
+m100M <- m100M %>% mutate(Result = as.double(Result))
+
+#manually input toyko 2021 data, webscraping unavailable for olympics.com
+m100M <- m100M %>% add_row(Gender = c("M","M","M"),
+                           Event = c("100M Men", "100M Men", "100M Men"),
+                           Location = c("Tokyo","Tokyo","Tokyo"),
+                           Year = c(2020,2020,2020),
+                           Medal = c("G","S","B"),
+                           Name = c("Lamont MARCELL JACOBS","Fred KERLEY","Andre DE GRASSE"),
+                           Nationality = c("ITA","USA","CAN"),
+                           Result = c(9.80,9.84,9.89)
+                           )
+
+#manually add DUMMY variable for missing years (due to WW2) in order for time analysis to be valid
+#1988 olympics also gets a DUMMY variable due to the results being invalid due to wind.
+#to to fix this, we took the average of the prior and following year as the input.
+m100M <- m100M %>% 
+  add_row(Gender = c("M","M","M","M","M","M","M","M","M"),
+          Event = c("100M Men", "100M Men", "100M Men","100M Men", "100M Men", "100M Men","100M Men", "100M Men", "100M Men"),
+          Location = c("DUMMY","DUMMY","DUMMY","DUMMY","DUMMY","DUMMY","DUMMY","DUMMY","DUMMY"),
+          Year = c(1940,1940,1940,1944,1944,1944,1988,1988,1988),
+          Medal = c("G","S","B","G","S","B","G","S","B"),
+          Name = c("DUMMY","DUMMY","DUMMY","DUMMY","DUMMY","DUMMY","DUMMY","DUMMY","DUMMY"),
+          Nationality = c("DUMMY","DUMMY","DUMMY","DUMMY","DUMMY","DUMMY","DUMMY","DUMMY","DUMMY"),
+          Result = c(10.30,10.40,10.55,10.30,10.40,10.55,9.98,10.11,10.13)
+                           )
+
+#fixing the results of specifics to match olympics.com 
+m100M[38,"Result"] <- 11.0
+m100M[39,"Result"] <- 11.0
+```
+
+```{r}
+#pull out gold medal winners
+m100M_G <- m100M %>% filter(Medal == "G",Year >= 1928) %>% arrange(Year)
+#pull out silver medal winners
+m100M_S <- m100M %>% filter(Medal == "S",Year >= 1928) %>% arrange(Year)
+#pull out bronze medal winners
+m100M_B <- m100M %>% filter(Medal == "B",Year >= 1928) %>% arrange(Year)
+```
+
+```{r}
+#make individual time series objects for gold, silver, bronze
+gts <- ts(m100M_G[8], start = 1928, end = 2020, deltat = 4)
+sts <- ts(m100M_S[8], start = 1928, end = 2020, deltat = 4)
+bts <- ts(m100M_B[8], start = 1928, end = 2020, deltat = 4)
+
+#prediction graph and summary using Holt's method for exponential time series smoothing for gold medal
+g_model <- holt(gts, h = 1, damped = TRUE)
+summary(g_model)
+autoplot(g_model) + 
+  ggtitle("Gold Medal Forecasting using Damped Holt's Method") +
+  xlab("Olympic Year") +
+  ylab("Time in Seconds") +
+  scale_x_continuous(breaks=seq(1928,2024,8)) +
+  scale_y_continuous(breaks=seq(9.6,10.8,0.2)) +
+  theme_wsj(base_size = 10, title_family = "sans")
+
+#prediction graph and summary using Holt's method for exponential time series smoothing for silver medal
+s_model <- holt(sts, h = 1, damped = TRUE)
+summary(s_model)
+autoplot(s_model) + 
+  ggtitle("Silver Medal Forecasting using Damped Holt's Method") +
+  xlab("Olympic Year") +
+  ylab("Time in Seconds") +
+  scale_x_continuous(breaks=seq(1928,2024,8)) +
+  scale_y_continuous(breaks=seq(9.6,10.8,0.2)) +
+  theme_wsj(base_size = 10, title_family = "sans")
+
+
+#prediction graph and summary using Holt's method for exponential time series smoothing for bronze medal
+b_model <- holt(bts, h = 1, damped = TRUE)
+summary(b_model)
+autoplot(b_model) + 
+  ggtitle("Bronze Medal Forecasting using Damped Holt's Method") + 
+  xlab("Olympic Year") +
+  ylab("Time in Seconds") +
+  scale_x_continuous(breaks=seq(1928,2024,8)) +
+  scale_y_continuous(breaks=seq(9.6,10.8,0.2)) +
+  theme_wsj(base_size = 10, title_family = "sans")
+```
